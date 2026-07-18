@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBTI 운동 캐릭터 8프레임 애니메이션</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;padding:20px;min-height:100vh;}
+h1{text-align:center;margin-bottom:6px;font-size:22px;}
+.sub{text-align:center;color:#aaa;font-size:12px;margin-bottom:18px;}
+.controls{text-align:center;margin-bottom:16px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;transition:transform .15s;}
+.btn:hover{transform:scale(1.05);}
+.btn-main{background:linear-gradient(135deg,#ff6b6b,#feca57);color:#1a1a2e;}
+.btn-sub{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);}
+.btn-play{background:#27ae60;color:#fff;}
+.progress{text-align:center;color:#feca57;margin:8px 0;font-size:12px;min-height:18px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;max-width:1600px;margin:0 auto;}
+.card{background:rgba(255,255,255,0.04);border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.08);}
+.card h3{font-size:14px;margin-bottom:6px;}
+.card-info{font-size:11px;color:#888;margin-bottom:8px;}
+.anim-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.anim-row .label{font-size:12px;min-width:24px;}
+.anim-preview{width:100px;height:100px;border-radius:6px;background:repeating-conic-gradient(#333 0% 25%,#2a2a2a 0% 50%) 50%/10px 10px;overflow:hidden;}
+.anim-preview canvas{display:block;}
+.frames-strip{display:flex;gap:2px;flex-wrap:wrap;}
+.frames-strip canvas{border-radius:3px;border:1px solid rgba(255,255,255,0.1);}
+</style>
+</head>
+<body>
+<h1>🐶🐱 MBTI 운동 캐릭터 8프레임 애니메이션</h1>
+<p class="sub">MBTI별 운동 동작 × 강아지/고양이 × 8프레임 (200×200px 투명배경)</p>
+<div class="controls">
+<button class="btn btn-play" onclick="toggleAnim()">⏯️ 애니메이션 재생/정지</button>
+<button class="btn btn-main" onclick="downloadAllSprites()">📦 스프라이트시트 다운로드</button>
+<button class="btn btn-sub" onclick="downloadAllFrames()">🖼️ 개별 프레임 ZIP 다운로드</button>
+</div>
+<div class="progress" id="progress"></div>
+<div class="grid" id="grid"></div>
+
+<script>
+const W=200,H=200;
+let animRunning=true, animId=null;
+
+const MBTI=[
+{type:'INTJ',name:'전략가',color:'#9b59b6',exercise:'dumbbell',
+ dog:{ear:'pointy',fur:'#4a4a4a',spot:'#2c2c2c'},cat:{ear:'tall',fur:'#3d3d3d',spot:'#1a1a1a'}},
+{type:'INTP',name:'논리술사',color:'#8e44ad',exercise:'jumprope',
+ dog:{ear:'floppy',fur:'#c4a882',spot:'#a08060'},cat:{ear:'round',fur:'#d4a574',spot:'#b8956a'}},
+{type:'ENTJ',name:'통솔자',color:'#7d3c98',exercise:'boxing',
+ dog:{ear:'cropped',fur:'#8B4513',spot:'#5a2d0a'},cat:{ear:'tall',fur:'#5a3e28',spot:'#3d2b1a'}},
+{type:'ENTP',name:'변론가',color:'#a569bd',exercise:'running',
+ dog:{ear:'floppy',fur:'#f5deb3',spot:'#e8c88a'},cat:{ear:'round',fur:'#ffb347',spot:'#e69520'}},
+{type:'INFJ',name:'옹호자',color:'#27ae60',exercise:'yoga',
+ dog:{ear:'floppy',fur:'#fff8f0',spot:'#f0e0d0'},cat:{ear:'tall',fur:'#f8f4f0',spot:'#e8dcd4'}},
+{type:'INFP',name:'중재자',color:'#2ecc71',exercise:'running',
+ dog:{ear:'floppy',fur:'#ffd4a8',spot:'#ffb070'},cat:{ear:'round',fur:'#ffe4c4',spot:'#ffc494'}},
+{type:'ENFJ',name:'선도자',color:'#1abc9c',exercise:'basketball',
+ dog:{ear:'pointy',fur:'#d4a060',spot:'#b88040'},cat:{ear:'tall',fur:'#c8946a',spot:'#a07850'}},
+{type:'ENFP',name:'활동가',color:'#16a085',exercise:'dance',
+ dog:{ear:'floppy',fur:'#ffcc80',spot:'#ff9800'},cat:{ear:'round',fur:'#ffab40',spot:'#ff6d00'}},
+{type:'ISTJ',name:'현실주의자',color:'#2980b9',exercise:'dumbbell',
+ dog:{ear:'pointy',fur:'#8d6e63',spot:'#5d4037'},cat:{ear:'tall',fur:'#6d4c41',spot:'#3e2723'}},
+{type:'ISFJ',name:'수호자',color:'#3498db',exercise:'yoga',
+ dog:{ear:'floppy',fur:'#ffe0b2',spot:'#ffcc80'},cat:{ear:'round',fur:'#fff3e0',spot:'#ffe0b2'}},
+{type:'ESTJ',name:'경영자',color:'#1a5276',exercise:'boxing',
+ dog:{ear:'cropped',fur:'#5d4037',spot:'#3e2723'},cat:{ear:'tall',fur:'#4e342e',spot:'#2c1a12'}},
+{type:'ESFJ',name:'집정관',color:'#2471a3',exercise:'dance',
+ dog:{ear:'floppy',fur:'#ffe8d6',spot:'#ffc4a0'},cat:{ear:'round',fur:'#ffd6ba',spot:'#ffb088'}},
+{type:'ISTP',name:'장인',color:'#e67e22',exercise:'boxing',
+ dog:{ear:'pointy',fur:'#78909c',spot:'#546e7a'},cat:{ear:'tall',fur:'#607d8b',spot:'#455a64'}},
+{type:'ISFP',name:'모험가',color:'#f39c12',exercise:'dance',
+ dog:{ear:'floppy',fur:'#ffccbc',spot:'#ff8a65'},cat:{ear:'round',fur:'#ffe0cc',spot:'#ffab91'}},
+{type:'ESTP',name:'사업가',color:'#d35400',exercise:'running',
+ dog:{ear:'cropped',fur:'#a1887f',spot:'#6d4c41'},cat:{ear:'tall',fur:'#8d6e63',spot:'#4e342e'}},
+{type:'ESFP',name:'연예인',color:'#e74c3c',exercise:'jumprope',
+ dog:{ear:'floppy',fur:'#fff0e0',spot:'#ffd0a0'},cat:{ear:'round',fur:'#ffe4cc',spot:'#ffb899'}},
+];
+
+const exerciseNames={dumbbell:'아령운동',running:'달리기',yoga:'요가',boxing:'복싱',dance:'댄스',jumprope:'줄넘기',basketball:'농구'};
+
+// ===== 운동별 포즈 데이터 (8프레임) =====
+// 각 프레임: {armL, armR, legL, legR, bodyBob, headTilt}
+// 각도는 degree, bodyBob은 y오프셋, headTilt은 회전
+function getExercisePose(exercise, frame) {
+    const f = frame % 8;
+    switch(exercise) {
+        case 'dumbbell': // 아령 컬
+            const curlAngle = [0,-15,-30,-50,-70,-50,-30,-15][f];
+            return {armL:curlAngle, armR:curlAngle, legL:0, legR:0, bodyBob:[0,-1,-2,-3,-3,-2,-1,0][f], headTilt:0, hasDumbbell:true};
+        case 'running': // 달리기
+            const runArm = [20,10,0,-15,-25,-15,0,10][f];
+            const runLeg = [25,15,0,-20,-30,-20,0,15][f];
+            return {armL:runArm, armR:-runArm, legL:runLeg, legR:-runLeg, bodyBob:[0,-3,-5,-3,0,-3,-5,-3][f], headTilt:[0,0,1,0,0,0,-1,0][f]};
+        case 'yoga': // 요가 (나무자세↔전사자세)
+            const yogaArm = [0,20,45,70,90,70,45,20][f];
+            const yogaLeg = [0,0,5,10,15,10,5,0][f];
+            return {armL:yogaArm, armR:yogaArm, legL:-yogaLeg, legR:yogaLeg, bodyBob:[0,0,-1,-2,-3,-2,-1,0][f], headTilt:[0,1,2,3,3,2,1,0][f]};
+        case 'boxing': // 복싱 펀치
+            const boxL = [0,0,-10,-10,0,0,0,-30][f];
+            const boxR = [0,-30,-60,-30,0,0,-10,-10][f];
+            return {armL:boxL, armR:boxR, legL:[0,5,5,0,0,-5,-5,0][f], legR:[0,-5,-5,0,0,5,5,0][f], bodyBob:[0,-2,-4,-2,0,-2,-4,-2][f], headTilt:[0,-2,-3,-2,0,2,3,2][f], hasGloves:true};
+        case 'dance': // 댄스
+            const danceArm = [30,60,90,120,90,60,30,0][f];
+            return {armL:-danceArm/2, armR:danceArm, legL:[0,5,10,5,0,-5,-10,-5][f], legR:[0,-5,-10,-5,0,5,10,5][f], bodyBob:[0,-4,-6,-4,0,-4,-6,-4][f], headTilt:[0,3,5,3,0,-3,-5,-3][f]};
+        case 'jumprope': // 줄넘기
+            const jumpH = [0,-8,-15,-20,-15,-8,0,0][f];
+            return {armL:[20,25,30,25,20,15,10,15][f], armR:[20,25,30,25,20,15,10,15][f], legL:[0,5,10,5,0,0,0,0][f], legR:[0,5,10,5,0,0,0,0][f], bodyBob:jumpH, headTilt:0, hasRope:true};
+        case 'basketball': // 농구 드리블+슛
+            const bbArm = [0,-10,-20,-40,-60,-40,-20,-10][f];
+            return {armL:[0,5,10,5,0,-5,-10,-5][f], armR:bbArm, legL:[0,5,10,5,0,0,0,0][f], legR:[0,-5,-10,-5,0,0,0,0][f], bodyBob:[0,-2,-5,-8,-12,-8,-5,-2][f], headTilt:[0,-1,-2,-3,-2,-1,0,0][f], hasBall:true};
+        default:
+            return {armL:0,armR:0,legL:0,legR:0,bodyBob:0,headTilt:0};
+    }
+}
+
+// ===== 메인 그리기 함수 =====
+function drawCharacter(ctx, type, frame, mbti) {
+    // type: 'dog' or 'cat'
+    const info = type==='dog' ? mbti.dog : mbti.cat;
+    const pose = getExercisePose(mbti.exercise, frame);
+    const cx=W/2, headY=55, bodyY=130;
+    const headR=38;
+
+    ctx.clearRect(0,0,W,H);
+    ctx.save();
+    // bodyBob 적용
+    ctx.translate(0, pose.bodyBob||0);
+
+    // --- 꼬리 ---
+    ctx.strokeStyle = info.fur;
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const tailWag = Math.sin(frame*0.8)*8;
+    ctx.moveTo(cx+30, bodyY);
+    ctx.quadraticCurveTo(cx+50+tailWag, bodyY-25, cx+42+tailWag, bodyY-42);
+    ctx.stroke();
+
+    // --- 뒷다리 ---
+    drawLeg(ctx, cx-16, bodyY+18, 14, 28, pose.legL, info.fur, type);
+    drawLeg(ctx, cx+6, bodyY+18, 14, 28, pose.legR, info.fur, type);
+
+    // --- 몸통 ---
+    ctx.fillStyle = info.fur;
+    ctx.beginPath(); ctx.ellipse(cx, bodyY, 36, 28, 0, 0, Math.PI*2); ctx.fill();
+    // 배
+    ctx.fillStyle = lighten(info.fur, 35);
+    ctx.beginPath(); ctx.ellipse(cx, bodyY+6, 22, 16, 0, 0, Math.PI*2); ctx.fill();
+    // 운동복
+    ctx.fillStyle = mbti.color+'88';
+    ctx.beginPath(); ctx.ellipse(cx, bodyY, 33, 25, 0, -0.3, Math.PI+0.3); ctx.fill();
+    // 로고
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(mbti.type, cx, bodyY+3);
+
+    // --- 앞다리/팔 ---
+    drawArm(ctx, cx-34, bodyY-10, 12, 26, pose.armL, info.fur, 'left', pose, mbti);
+    drawArm(ctx, cx+22, bodyY-10, 12, 26, pose.armR, info.fur, 'right', pose, mbti);
+
+    // --- 목 ---
+    ctx.fillStyle = info.fur;
+    ctx.beginPath(); ctx.ellipse(cx, bodyY-26, 14, 10, 0, 0, Math.PI*2); ctx.fill();
+
+    // --- 머리 ---
+    ctx.save();
+    ctx.translate(cx, headY);
+    ctx.rotate((pose.headTilt||0) * Math.PI/180);
+
+    // 머리 원
+    ctx.fillStyle = info.fur;
+    ctx.beginPath(); ctx.arc(0, 0, headR, 0, Math.PI*2); ctx.fill();
+    // 볼 볼록
+    if(type==='cat') {
+        ctx.beginPath(); ctx.ellipse(-headR+6, 10, 9, 7, 0.3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(headR-6, 10, 9, 7, -0.3, 0, Math.PI*2); ctx.fill();
+    }
+    // 무늬
+    ctx.fillStyle = info.spot;
+    ctx.beginPath(); ctx.ellipse(-6, -12, 12, 10, -0.2, 0, Math.PI*2); ctx.fill();
+
+    // 귀
+    drawEars(ctx, type, info, headR);
+
+    // 눈
+    drawEyes(ctx, type, mbti, frame);
+
+    // 코+입
+    if(type==='dog') drawDogFace(ctx, frame);
+    else drawCatFace(ctx);
+
+    // 볼터치
+    ctx.fillStyle = 'rgba(255,140,150,0.3)';
+    ctx.beginPath(); ctx.ellipse(-26, 14, 7, 4.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(26, 14, 7, 4.5, 0, 0, Math.PI*2); ctx.fill();
+
+    ctx.restore(); // head
+
+    // --- 운동 소품 ---
+    drawExerciseProps(ctx, cx, bodyY, headY, pose, mbti, frame);
+
+    // --- 이펙트 ---
+    drawEffects(ctx, frame, mbti.exercise);
+
+    ctx.restore(); // bodyBob
+}
+
+// ===== 부위별 그리기 =====
+function drawLeg(ctx, x, y, w, h, angle, fur, type) {
+    ctx.save();
+    ctx.translate(x+w/2, y);
+    ctx.rotate(angle * Math.PI/180);
+    ctx.fillStyle = fur;
+    roundRect(ctx, -w/2, 0, w, h, 5); ctx.fill();
+    // 발
+    ctx.fillStyle = darken(fur, 20);
+    ctx.beginPath(); ctx.ellipse(0, h-2, w/2+2, 6, 0, 0, Math.PI*2); ctx.fill();
+    if(type==='cat') {
+        ctx.fillStyle = '#ffb6c1';
+        ctx.beginPath(); ctx.arc(0, h-1, 3.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ff8fa3';
+        ctx.beginPath(); ctx.arc(-3, h-5, 1.8, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, h-6, 1.8, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3, h-5, 1.8, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawArm(ctx, x, y, w, h, angle, fur, side, pose, mbti) {
+    ctx.save();
+    ctx.translate(x+w/2, y);
+    ctx.rotate(angle * Math.PI/180);
+    ctx.fillStyle = fur;
+    roundRect(ctx, -w/2, 0, w, h, 5); ctx.fill();
+    // 손/발
+    ctx.fillStyle = darken(fur, 15);
+    ctx.beginPath(); ctx.arc(0, h, w/2+1, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+}
+
+function drawEars(ctx, type, info, r) {
+    ctx.fillStyle = info.fur;
+    if(type==='dog') {
+        if(info.ear==='pointy') {
+            triangle(ctx,-r+5,-r+10, -r/2+2,-r-18, -4,-r+8);
+            triangle(ctx,r-5,-r+10, r/2-2,-r-18, 4,-r+8);
+            ctx.fillStyle = lighten(info.fur,40);
+            triangle(ctx,-r+9,-r+12, -r/2+3,-r-13, -7,-r+9);
+            triangle(ctx,r-9,-r+12, r/2-3,-r-13, 7,-r+9);
+        } else if(info.ear==='floppy') {
+            ctx.fillStyle = info.fur;
+            ctx.beginPath(); ctx.ellipse(-r+3, 6, 12, 24, 0.15, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(r-3, 6, 12, 24, -0.15, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = lighten(info.fur,30);
+            ctx.beginPath(); ctx.ellipse(-r+3, 8, 8, 17, 0.15, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(r-3, 8, 8, 17, -0.15, 0, Math.PI*2); ctx.fill();
+        } else {
+            triangle(ctx,-r+2,-r+12, -r/2+2,-r-14, -4,-r+10);
+            triangle(ctx,r-2,-r+12, r/2-2,-r-14, 4,-r+10);
+            ctx.fillStyle = lighten(info.fur,35);
+            triangle(ctx,-r+6,-r+13, -r/2+3,-r-10, -6,-r+11);
+            triangle(ctx,r-6,-r+13, r/2-3,-r-10, 6,-r+11);
+        }
+    } else { // cat
+        if(info.ear==='tall') {
+            ctx.fillStyle = info.fur;
+            triangle(ctx,-r+2,-6, -r/2,-r-16, -2,-r+6);
+            triangle(ctx,r-2,-6, r/2,-r-16, 2,-r+6);
+            ctx.fillStyle = '#ffb6c1';
+            triangle(ctx,-r+7,-8, -r/2+1,-r-10, -5,-r+7);
+            triangle(ctx,r-7,-8, r/2-1,-r-10, 5,-r+7);
+        } else {
+            ctx.fillStyle = info.fur;
+            triangle(ctx,-r+2,-4, -r/2+2,-r-14, -2,-r+8);
+            triangle(ctx,r-2,-4, r/2-2,-r-14, 2,-r+8);
+            ctx.beginPath(); ctx.arc(-r/2+2, -r-13, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(r/2-2, -r-13, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ffb6c1';
+            triangle(ctx,-r+7,-6, -r/2+3,-r-9, -5,-r+8);
+            triangle(ctx,r-7,-6, r/2-3,-r-9, 5,-r+8);
+        }
+    }
+}
+
+function drawEyes(ctx, type, mbti, frame) {
+    const ey = 3;
+    const gap = 14;
+    // 깜빡임 (프레임 4에서)
+    if(frame===4) {
+        ctx.strokeStyle = '#2c2c2c';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-gap-6, ey); ctx.lineTo(-gap+6, ey); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(gap-6, ey); ctx.lineTo(gap+6, ey); ctx.stroke();
+        return;
+    }
+    // 흰자
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(-gap, ey, 10, 11, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gap, ey, 10, 11, 0, 0, Math.PI*2); ctx.fill();
+    if(type==='cat') {
+        // 홍채 (MBTI색)
+        ctx.fillStyle = mbti.color;
+        ctx.beginPath(); ctx.ellipse(-gap, ey+1, 8, 9.5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(gap, ey+1, 8, 9.5, 0, 0, Math.PI*2); ctx.fill();
+        // 세로동공
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.ellipse(-gap, ey+1, 2.5, 8, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(gap, ey+1, 2.5, 8, 0, 0, Math.PI*2); ctx.fill();
+    } else {
+        // 강아지 동공
+        ctx.fillStyle = '#2c2c2c';
+        ctx.beginPath(); ctx.ellipse(-gap, ey+1.5, 6.5, 7.5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(gap, ey+1.5, 6.5, 7.5, 0, 0, Math.PI*2); ctx.fill();
+    }
+    // 하이라이트
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-gap+3, ey-3, 3.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(gap+3, ey-3, 3.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-gap-1, ey+4, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(gap-1, ey+4, 1.5, 0, Math.PI*2); ctx.fill();
+}
+
+function drawDogFace(ctx, frame) {
+    // 코
+    ctx.fillStyle = '#3d2b1f';
+    ctx.beginPath(); ctx.ellipse(0, 18, 7, 5.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath(); ctx.ellipse(-2, 16.5, 2.5, 1.5, 0, 0, Math.PI*2); ctx.fill();
+    // 입
+    ctx.strokeStyle = '#3d2b1f'; ctx.lineWidth = 1.8; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,23); ctx.quadraticCurveTo(-8,28,-10,26); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,23); ctx.quadraticCurveTo(8,28,10,26); ctx.stroke();
+    // 혀
+    ctx.fillStyle = '#ff8a80';
+    const tongueLen = 4 + Math.sin(frame*0.7)*2;
+    ctx.beginPath(); ctx.ellipse(0, 27+tongueLen/2, 4, tongueLen, 0, 0, Math.PI*2); ctx.fill();
+}
+
+function drawCatFace(ctx) {
+    // 코 (역삼각형)
+    ctx.fillStyle = '#ff8a80';
+    triangle(ctx, -4, 18, 4, 18, 0, 23);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath(); ctx.ellipse(-1, 19, 1.8, 1, 0, 0, Math.PI*2); ctx.fill();
+    // 수염
+    ctx.strokeStyle = 'rgba(60,60,60,0.4)'; ctx.lineWidth = 0.9;
+    const wy = 22;
+    ctx.beginPath(); ctx.moveTo(-8,wy); ctx.lineTo(-38,wy-6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8,wy+3); ctx.lineTo(-38,wy+3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8,wy+6); ctx.lineTo(-36,wy+12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8,wy); ctx.lineTo(38,wy-6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8,wy+3); ctx.lineTo(38,wy+3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8,wy+6); ctx.lineTo(36,wy+12); ctx.stroke();
+    // 입
+    ctx.strokeStyle = '#8d6e63'; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(0,23); ctx.quadraticCurveTo(-5,27,-7,26); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,23); ctx.quadraticCurveTo(5,27,7,26); ctx.stroke();
+}
+
+function drawExerciseProps(ctx, cx, bodyY, headY, pose, mbti, frame) {
+    switch(mbti.exercise) {
+        case 'dumbbell':
+            // 양손 아령
+            const dy = bodyY - 10 + (pose.bodyBob||0);
+            const armLen = 26;
+            const aL = pose.armL * Math.PI/180;
+            const aR = pose.armR * Math.PI/180;
+            const lx = cx-34+6 + Math.sin(aL)*armLen;
+            const ly = dy + Math.cos(aL)*armLen;
+            const rx = cx+22+6 + Math.sin(aR)*armLen;
+            const ry = dy + Math.cos(aR)*armLen;
+            drawDumbbell(ctx, lx, ly, 18);
+            drawDumbbell(ctx, rx, ry, 18);
+            break;
+        case 'boxing':
+            // 복싱 글러브 (이미 팔 끝에)
+            const bdy = bodyY - 10;
+            ctx.fillStyle = '#e74c3c';
+            const bAL = pose.armL * Math.PI/180;
+            const bAR = pose.armR * Math.PI/180;
+            const glx = cx-34+6 + Math.sin(bAL)*28;
+            const gly = bdy + Math.cos(bAL)*28 + (pose.bodyBob||0);
+            const grx = cx+22+6 + Math.sin(bAR)*28;
+            const gry = bdy + Math.cos(bAR)*28 + (pose.bodyBob||0);
+            ctx.beginPath(); ctx.arc(glx, gly, 9, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(grx, gry, 9, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#c0392b';
+            ctx.beginPath(); ctx.arc(glx, gly, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(grx, gry, 5, 0, Math.PI*2); ctx.fill();
+            break;
+        case 'jumprope':
+            // 줄넘기 줄
+            ctx.strokeStyle = mbti.color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4,3]);
+            const ropeY = bodyY + 30 + (pose.bodyBob||0);
+            const ropeArc = 20 + Math.sin(frame*1.2)*15;
+            ctx.beginPath();
+            ctx.moveTo(cx-30, bodyY-5+(pose.bodyBob||0));
+            ctx.quadraticCurveTo(cx, ropeY+ropeArc, cx+30, bodyY-5+(pose.bodyBob||0));
+            ctx.stroke();
+            ctx.setLineDash([]);
+            break;
+        case 'basketball':
+            // 농구공
+            const ballY = bodyY - 30 + Math.abs(pose.bodyBob||0)*1.5;
+            ctx.fillStyle = '#e67e22';
+            ctx.beginPath(); ctx.arc(cx+28, ballY+(pose.bodyBob||0), 10, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#4a2800'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(cx+28, ballY+(pose.bodyBob||0), 10, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx+18, ballY+(pose.bodyBob||0)); ctx.lineTo(cx+38, ballY+(pose.bodyBob||0)); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx+28, ballY-10+(pose.bodyBob||0)); ctx.lineTo(cx+28, ballY+10+(pose.bodyBob||0)); ctx.stroke();
+            break;
+        case 'dance':
+            // 음표 이펙트
+            ctx.fillStyle = mbti.color+'aa';
+            ctx.font = '14px sans-serif';
+            const noteY = headY - 30 + Math.sin(frame*0.8)*5;
+            ctx.fillText('♪', cx-30+frame*3, noteY);
+            ctx.fillText('♫', cx+20-frame*2, noteY-8);
+            break;
+    }
+}
+
+function drawDumbbell(ctx, x, y, size) {
+    ctx.fillStyle = '#555';
+    roundRect(ctx, x-size/2, y-2.5, size, 5, 2); ctx.fill();
+    ctx.fillStyle = '#888';
+    roundRect(ctx, x-size/2-2, y-4, 5, 8, 2); ctx.fill();
+    roundRect(ctx, x+size/2-3, y-4, 5, 8, 2); ctx.fill();
+    ctx.fillStyle = '#666';
+    roundRect(ctx, x-size/2-5, y-5, 4, 10, 2); ctx.fill();
+    roundRect(ctx, x+size/2, y-5, 4, 10, 2); ctx.fill();
+}
+
+function drawEffects(ctx, frame, exercise) {
+    // 땀방울
+    const sweatX = W-20, sweatY = 25+Math.sin(frame*0.5)*3;
+    ctx.fillStyle = 'rgba(116,185,255,0.5)';
+    ctx.beginPath(); ctx.moveTo(sweatX,sweatY); ctx.quadraticCurveTo(sweatX+3,sweatY+5,sweatX,sweatY+10); ctx.quadraticCurveTo(sweatX-3,sweatY+5,sweatX,sweatY); ctx.fill();
+
+    // 속도선 (달리기/줄넘기)
+    if(exercise==='running'||exercise==='jumprope') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1.5;
+        for(let i=0;i<3;i++) {
+            const ly = 80+i*30 + frame*2;
+            ctx.beginPath(); ctx.moveTo(5, ly); ctx.lineTo(25, ly); ctx.stroke();
+        }
+    }
+    // 충격 이펙트 (복싱)
+    if(exercise==='boxing' && (frame===2||frame===6)) {
+        ctx.fillStyle = 'rgba(255,200,0,0.4)';
+        drawSparkle(ctx, W-25, 60, 8);
+    }
+}
+
+// ===== 유틸 =====
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+function triangle(ctx,x1,y1,x2,y2,x3,y3){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);ctx.closePath();ctx.fill();}
+function drawSparkle(ctx,x,y,s){ctx.beginPath();ctx.moveTo(x,y-s);ctx.lineTo(x+s*.3,y-s*.3);ctx.lineTo(x+s,y);ctx.lineTo(x+s*.3,y+s*.3);ctx.lineTo(x,y+s);ctx.lineTo(x-s*.3,y+s*.3);ctx.lineTo(x-s,y);ctx.lineTo(x-s*.3,y-s*.3);ctx.closePath();ctx.fill();}
+function lighten(hex,a){if(!hex||hex.startsWith('rgb'))return hex;let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`rgb(${Math.min(255,r+a)},${Math.min(255,g+a)},${Math.min(255,b+a)})`;}
+function darken(hex,a){if(!hex||hex.startsWith('rgb'))return hex;let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`rgb(${Math.max(0,r-a)},${Math.max(0,g-a)},${Math.max(0,b-a)})`;}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ===== 렌더링 & 애니메이션 =====
+let allCanvases = []; // {canvas, type, mbti}
+
+function renderAll() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    allCanvases = [];
+
+    MBTI.forEach(mbti => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const exName = exerciseNames[mbti.exercise]||mbti.exercise;
+        let html = `<h3 style="color:${mbti.color}">【${mbti.type}】 ${mbti.name}</h3><div class="card-info">🏃 ${exName}</div>`;
+
+        // 강아지 행
+        html += `<div class="anim-row"><span class="label">🐶</span><div class="anim-preview"><canvas id="anim_dog_${mbti.type}" width="${W}" height="${H}" style="width:100px;height:100px;"></canvas></div><div class="frames-strip" id="strip_dog_${mbti.type}"></div></div>`;
+        // 고양이 행
+        html += `<div class="anim-row"><span class="label">🐱</span><div class="anim-preview"><canvas id="anim_cat_${mbti.type}" width="${W}" height="${H}" style="width:100px;height:100px;"></canvas></div><div class="frames-strip" id="strip_cat_${mbti.type}"></div></div>`;
+
+        card.innerHTML = html;
+        grid.appendChild(card);
+
+        // 프레임 스트립 캔버스
+        requestAnimationFrame(()=>{
+            ['dog','cat'].forEach(type => {
+                const strip = document.getElementById(`strip_${type}_${mbti.type}`);
+                for(let f=0;f<8;f++){
+                    const fc = document.createElement('canvas');
+                    fc.width=W; fc.height=H;
+                    fc.style.cssText='width:40px;height:40px;';
+                    fc.id=`frame_${type}_${mbti.type}_${f}`;
+                    drawCharacter(fc.getContext('2d'), type, f, mbti);
+                    strip.appendChild(fc);
+                }
+                const animCanvas = document.getElementById(`anim_${type}_${mbti.type}`);
+                allCanvases.push({canvas:animCanvas, type, mbti});
+            });
+        });
+    });
+
+    // 애니메이션 시작
+    setTimeout(startAnimation, 200);
+}
+
+let currentFrame = 0;
+function startAnimation(){
+    if(animId) cancelAnimationFrame(animId);
+    function loop(){
+        if(!animRunning){animId=requestAnimationFrame(loop);return;}
+        allCanvases.forEach(({canvas,type,mbti})=>{
+            drawCharacter(canvas.getContext('2d'), type, currentFrame, mbti);
+        });
+        currentFrame = (currentFrame+1)%8;
+        setTimeout(()=>{animId=requestAnimationFrame(loop);}, 150);
+    }
+    loop();
+}
+
+function toggleAnim(){
+    animRunning = !animRunning;
+}
+
+// ===== 다운로드 =====
+async function downloadAllSprites(){
+    const prog=document.getElementById('progress');
+    let count=0; const total=MBTI.length*2;
+    for(const mbti of MBTI){
+        for(const type of ['dog','cat']){
+            // 스프라이트시트 (8프레임 가로 연결 = 1600x200)
+            const spriteCanvas = document.createElement('canvas');
+            spriteCanvas.width = W*8; spriteCanvas.height = H;
+            const sctx = spriteCanvas.getContext('2d');
+            for(let f=0;f<8;f++){
+                const fc = document.getElementById(`frame_${type}_${mbti.type}_${f}`);
+                if(fc) sctx.drawImage(fc, f*W, 0);
+            }
+            const a=document.createElement('a');
+            a.download=`${mbti.type}_${type}_sprite.png`;
+            a.href=spriteCanvas.toDataURL('image/png');
+            a.click();
+            count++;
+            prog.textContent=`스프라이트 다운로드 중... ${count}/${total}`;
+            await sleep(100);
+        }
+    }
+    prog.textContent=`✅ ${total}개 스프라이트시트 다운로드 완료!`;
+}
+
+async function downloadAllFrames(){
+    const prog=document.getElementById('progress');
+    prog.textContent='ZIP 라이브러리 로딩...';
+    if(!window.JSZip){
+        const sc=document.createElement('script');
+        sc.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        document.head.appendChild(sc);
+        await new Promise(r=>sc.onload=r);
+    }
+    const zip=new JSZip();
+    let count=0; const total=MBTI.length*2*8;
+    for(const mbti of MBTI){
+        const folder=zip.folder(mbti.type);
+        for(const type of ['dog','cat']){
+            for(let f=0;f<8;f++){
+                const fc=document.getElementById(`frame_${type}_${mbti.type}_${f}`);
+                if(fc){
+                    const data=fc.toDataURL('image/png').split(',')[1];
+                    folder.file(`${mbti.type}_${type}_frame${f+1}.png`, data, {base64:true});
+                    count++;
+                }
+                prog.textContent=`ZIP 생성 중... ${count}/${total}`;
+            }
+        }
+    }
+    prog.textContent='압축 중...';
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');
+    a.download='MBTI_fitness_animation_frames.zip';
+    a.href=URL.createObjectURL(blob);
+    a.click();
+    prog.textContent='✅ ZIP 다운로드 완료! (MBTI_fitness_animation_frames.zip)';
+}
+
+renderAll();
+</script>
+</body>
+</html>
